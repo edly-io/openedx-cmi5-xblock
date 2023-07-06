@@ -1,6 +1,9 @@
 Openedx CMI5 XBlock
 #############################
 
+Xblock to play CMI5 content inside Open edX
+
+
 Testing with Docker
 ********************
 

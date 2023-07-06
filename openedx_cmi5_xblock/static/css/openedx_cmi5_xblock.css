@@ -1,0 +1,9 @@
+/* CSS for CMI5XBlock */
+
+.openedx_cmi5_xblock_block .count {
+    font-weight: bold;
+}
+
+.openedx_cmi5_xblock_block p {
+    cursor: pointer;
+}

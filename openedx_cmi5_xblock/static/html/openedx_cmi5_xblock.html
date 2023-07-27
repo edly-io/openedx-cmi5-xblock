@@ -1,5 +1,18 @@
+{% load i18n %}
+
 <div class="openedx_cmi5_xblock_block">
-<p>CMI5XBlock: count is now
-    <span class='count'>{self.count}</span> (click me to increment).
-</p>
+    <h3 class="xblock-title mb-2">{{title}}</h3>
+    {% if index_page_url %}
+    <div class="cmi5-content">
+        <iframe
+            class="cmi5-embedded"
+            src="{{ index_page_url }}"
+            width="{% if cmi5_xblock.width %}{{ cmi5_xblock.width }}{% else %}100%{% endif %}"
+            height="{% if cmi5_xblock.height %}{{ cmi5_xblock.height }}{% else %}450{% endif %}"
+        >
+        </iframe>
+    </div>
+    {% elif message %}
+    <p>{{ message }}</p>
+    {% endif %}
 </div>

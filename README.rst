@@ -18,23 +18,20 @@ Installation for tutor
 
 This method works with [tutor](https://github.com/overhangio/tutor).
 
-First, go to your requirements directory:
+First, go to your requirements directory::
 
-```sh
-cd $(tutor config printroot)/env/build/openedx/requirements/
-```
+    cd $(tutor config printroot)/env/build/openedx/requirements/
 
-add the `chatgpt-xblock` repo to  the `private.txt`:
 
-```sh
-echo "git+https://github.com/edly-io/openedx-cmi5-xblock.git" >> private.txt
-```
+add the `openedx-cmi5-xblock` repo to  the `private.txt`::
 
-and build a new image:
+    echo "git+https://github.com/edly-io/openedx-cmi5-xblock.git" >> private.txt
 
-```sh
-tutor images build openedx
-```
+
+and build a new image::
+
+    tutor images build openedx
+
 
 In your studio, in your desired course, go to Advanced Settings and add `"openedx_cmi5_xblock"` in the Advanced Module List.
 
@@ -44,20 +41,18 @@ Development
 
 There's no need to build a new image, if you just want to play with the xblock.
 
-First, clone the repo in the requirements directory:
+First, clone the repo in the requirements directory::
 
-```sh
-cd $(tutor config printroot)/env/build/openedx/requirements/
-git clone git@github.com:edly-io/openedx-cmi5-xblock.git
-```
+    cd $(tutor config printroot)/env/build/openedx/requirements/
+    git clone git@github.com:edly-io/openedx-cmi5-xblock.git
 
-exec to the lms container and install the XBlock:
 
-```sh
-tutor dev exec -it cms bash
-cd ../requirements
-pip install -e openedx-cmi5-xblock
-```
+exec to the lms container and install the XBlock::
+
+    tutor dev exec -it cms bash
+    cd ../requirements
+    pip install -e openedx-cmi5-xblock
+
 
 Note: This is not the best practice to develop an XBlock, but it works if you don't want to build dev image.
 

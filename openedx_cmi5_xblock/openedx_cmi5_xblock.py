@@ -1,3 +1,5 @@
+"""Openedx CMI5 XBlock implementation """
+
 import hashlib
 import json
 import logging
@@ -36,6 +38,9 @@ def _(text): return text
 @XBlock.wants('settings')
 @XBlock.wants('enrollments')
 class CMI5XBlock(XBlock, CompletableXBlockMixin):
+    """
+    This is the main xblock class with all the members defined
+    """
     display_name = String(
         display_name=_('Display Name'),
         help=_('Display name'),
@@ -130,12 +135,16 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         return self.student_view(context=context)
 
     def studio_view(self, context=None):
+        """
+        This method generates the studio view, including the display of various fields
+        related to the CMI5 XBlock, and initializes the required CSS and JavaScript.
+        """
         studio_context = {
-            'field_display_name': self.fields['display_name'],
-            'field_has_score': self.fields['has_score'],
-            'field_weight': self.fields['weight'],
-            'field_width': self.fields['width'],
-            'field_height': self.fields['height'],
+            'field_display_name': self.fields['display_name'], # E1136: Value 'self.fields' is unsubscriptable (unsubscriptable-object) # noqa
+            'field_has_score': self.fields['has_score'], # E1136: Value 'self.fields' is unsubscriptable (unsubscriptable-object) # noqa
+            'field_weight': self.fields['weight'], # E1136: Value 'self.fields' is unsubscriptable (unsubscriptable-object) # noqa
+            'field_width': self.fields['width'], # E1136: Value 'self.fields' is unsubscriptable (unsubscriptable-object) # noqa
+            'field_height': self.fields['height'], # E1136: Value 'self.fields' is unsubscriptable (unsubscriptable-object) # noqa
             'cmi5_xblock': self
         }
 
@@ -173,6 +182,10 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     @property
     def index_page_url(self):
+        """
+        Gets the URL of the CMI5 index page.
+        Returns an empty string if the package metadata or index page path is not available.
+        """
         if not self.package_meta or not self.index_page_path:
             return ''
 
@@ -206,6 +219,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         return os.path.join(self.cmi5_location(), self.location.block_id)
 
     def is_url(self, path):
+        """
+        Checks if the given path is a valid URL.
+        """
         try:
             validator = URLValidator(verify_exists=False)
             validator(path)
@@ -214,9 +230,15 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         return True
 
     def is_params_exist(self, url):
+        """
+        Checks if query parameters exist in the given URL.
+        """
         return '?' in url
 
     def get_launch_url_params(self):
+        """
+        Constructs and returns launch URL parameters for CMI5 integration
+        """
         parameters = {
             'fetch': urllib.parse.quote_plus(self.runtime.handler_url(self, 'lrs_auth_endpoint', thirdparty=True)),
             'endpoint': urllib.parse.quote_plus(
@@ -243,6 +265,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     @XBlock.handler
     def studio_submit(self, request, _suffix):
+        """
+        Handles the submission of the CMI5 XBlock studio form.
+        """
         self.display_name = request.params['display_name']
         self.width = parse_int(request.params['width'], None)
         self.height = parse_int(request.params['height'], None)
@@ -270,6 +295,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         return self.json_response(response)
 
     def update_package_meta(self, package_file):
+        """
+        Updates the package metadata based on the provided package file.
+        """
         self.package_meta['sha1'] = self.get_sha1(package_file)
         self.package_meta['name'] = package_file.name
         self.package_meta['last_updated'] = timezone.now().strftime(DateTime.DATETIME_FORMAT)
@@ -277,6 +305,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         package_file.seek(0)
 
     def clean_storage(self):
+        """
+        Cleans the storage by removing the previously unzipped content.
+        """
         if self.storage.exists(self.extract_folder_base_path):
             logger.info('Removing previously unzipped "%s"', self.extract_folder_base_path)
             self.recursive_delete(self.extract_folder_base_path)
@@ -294,6 +325,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             self.storage.delete(os.path.join(root, f))
 
     def extract_package(self, package_file):
+        """
+        Extracts content from the provided CMI5 package file.
+        """
         ext = package_file.name.split('.')[-1].lower()
         if ext == 'zip':
             self.extract_zip_file(package_file)
@@ -303,6 +337,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             raise CMI5Error(f'Could not support {ext} file')
 
     def extract_zip_file(self, package_file):
+        """
+        Extracts content from a zip file within the CMI5 package.
+        """
         with zipfile.ZipFile(package_file, 'r') as cmi5_zipfile:
             zipinfos = cmi5_zipfile.infolist()
             root_path = None
@@ -326,6 +363,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
                         self.storage.save(dest_path, ContentFile(cmi5_zipfile.read(zipinfo.filename)))
 
     def save_xml_file(self, package_file):
+        """
+        Saves an XML file from the CMI5 package.
+        """
         dest_path = os.path.join(self.extract_folder_path, package_file.filename)
         self.storage.save(dest_path, ContentFile(package_file.filename))
 
@@ -355,6 +395,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             self.index_page_path = self.find_relative_file_path('index.html')
 
     def set_course_detail(self, prefix, root):
+        """
+        Extracts course details from the provided XML root.
+        """
         course_data = {}
 
         try:
@@ -373,6 +416,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     @XBlock.handler
     def lrs_endpoint(self, request, _suffix):
+        """
+        Handles requests related to the Learning Record Store (LRS) endpoint.
+        """
 
         if request.params.get('statementId') and request.method == 'PUT':
             statement_data = self.get_request_body(request)
@@ -405,26 +451,44 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         return self.json_response({'success': True})
 
     def get_request_body(self, request):
+        """
+        Gets the JSON body from an HTTP request.
+        """
         return json.loads(request.body.decode('utf-8'))
 
     def publish_grade(self):
+        """
+        Publishes the grade to the XBlock runtime.
+        """
         self.runtime.publish(self, 'grade', {'value': self.get_grade(), 'max_value': self.weight})
 
     def get_grade(self):
+        """
+        Calculates and returns the normalized grade.
+        """
         lesson_score = 0 if self.is_failed else self.lesson_score
         return lesson_score * self.weight
 
     @property
     def is_failed(self):
+        """
+        Checks if the lesson is in a failed status.
+        """
         return self.lesson_status == 'failed'
 
     def is_cmi5_object(self, categories):
+        """
+        Checks if the given categories include the cmi5 category.
+        """
         if categories is None:
             return False
         cmi5_category = 'https://w3id.org/xapi/cmi5/context/categories/cmi5'
         return any([category['id'] == cmi5_category for category in categories])
 
     def get_launch_state_data(self):
+        """
+        Generates and returns launch state data for the XBlock.
+        """
         return {
             'contextTemplate': {
                 'registration': self.get_enrollment_uuid(),
@@ -450,6 +514,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     @XBlock.handler
     def lrs_auth_endpoint(self, request, _suffix):
+        """
+        Handles requests to the LRS authentication endpoint.
+        """
         user_id = self.get_current_user_attr('edx-platform.user_id')
         session_id = request.cookies.get('sessionid', 'auth-session-id')
         authtoken = 'user-id:{0}_session-id:{1}'.format(user_id, session_id)
@@ -458,6 +525,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         return self.json_response({'auth-token': authtoken})
 
     def get_erollment_id(self):
+        """
+        Retrieves the enrollment ID of the current user for the XBlock's course.
+        """
         user_id = self.get_current_user_attr('edx-platform.user_id')
         course_id = self.runtime.course_id
         try:
@@ -469,11 +539,17 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             return 'anonymous'
 
     def get_enrollment_uuid(self):
+        """
+        Generates and returns the enrollment UUID based on the enrollment ID.
+        """
         base_id = uuid.UUID('2af01743-8d97-423e-988a-25c69fa4ea66')
         enrollment_uuid = uuid.uuid5(base_id, 'openedx-enrollment-id:{0}'.format(self.get_erollment_id()))
         return str(enrollment_uuid)
 
     def find_relative_file_path(self, filename):
+        """
+        Finds the relative file path within the XBlock's extract folder.
+        """
         return os.path.relpath(self.find_file_path(filename), self.extract_folder_path)
 
     def find_file_path(self, filename):
@@ -567,6 +643,9 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
 
 def parse_int(value, default):
+    """
+    Parses an integer, returning the parsed value or a default if unsuccessful.
+    """
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -574,6 +653,9 @@ def parse_int(value, default):
 
 
 def parse_float(value, default):
+    """
+    Parses a float, returning the parsed value or a default if unsuccessful.
+    """
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -581,6 +663,9 @@ def parse_float(value, default):
 
 
 def parse_validate_positive_float(value, name):
+    """
+    Parse and validate a given value as a positive float.
+    """
     try:
         parsed = float(value)
     except (TypeError, ValueError):
@@ -591,4 +676,7 @@ def parse_validate_positive_float(value, name):
 
 
 class CMI5Error(Exception):
+    """
+    Base exception class for CMI5-related errors.
+    """
     pass

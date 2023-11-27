@@ -35,6 +35,7 @@ and build a new image::
 
 In your studio, in your desired course, go to Advanced Settings and add `"openedx_cmi5_xblock"` in the Advanced Module List.
 
+If you want to test the cmi5 content, then [here](https://github.com/overhangio/tutor) you can get a demo file to test: 
 
 Development
 ***********

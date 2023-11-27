@@ -14,7 +14,6 @@ import requests
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.core.validators import URLValidator
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.module_loading import import_string
@@ -24,6 +23,17 @@ from xblock.completable import CompletableXBlockMixin
 from xblock.core import XBlock
 from xblock.fields import Boolean, DateTime, Dict, Float, Integer, Scope, String
 from xblock.fragment import Fragment
+
+from openedx_cmi5_xblock.utils.utility import (
+    json_response,
+    is_url,
+    is_cmi5_object,
+    is_params_exist,
+    get_request_body,
+    get_sha1,
+    parse_float,
+    parse_int,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,31 +117,6 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     has_author_view = True
 
-    def render_template(self, template_path, context):
-        """Render a template with the provided context."""
-        template_str = self.resource_string(template_path)
-        template = Template(template_str)
-        return template.render(Context(context))
-
-    @staticmethod
-    def resource_string(path):
-        """Handy helper for getting resources from our kit."""
-        data = pkg_resources.resource_string(__name__, path)
-        return data.decode('utf8')
-
-    @staticmethod
-    def json_response(data):
-        """Generate a JSON response."""
-        return Response(json.dumps(data), content_type='application/json', charset='utf8')
-
-    def get_current_user_attr(self, attr: str):
-        """Get the value of a specific attribute for the current user."""
-        return self.get_current_user().opt_attrs.get(attr)
-
-    def get_current_user(self):
-        """Get the current user."""
-        return self.runtime.service(self, 'user').get_current_user()
-
     def author_view(self, context=None):
         """View for authors to preview content."""
         context = context or {}
@@ -156,10 +141,10 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         }
 
         studio_context.update(context or {})
-        template = self.render_template('static/html/studio.html', studio_context)
+        template = render_template('static/html/studio.html', studio_context)
         frag = Fragment(template)
-        frag.add_css(self.resource_string('static/css/openedx_cmi5_xblock.css'))
-        frag.add_javascript(self.resource_string('static/js/src/studio.js'))
+        frag.add_css(resource_string('static/css/openedx_cmi5_xblock.css'))
+        frag.add_javascript(resource_string('static/js/src/studio.js'))
         frag.initialize_js('CMI5StudioXBlock')
         return frag
 
@@ -171,11 +156,11 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             'cmi5_xblock': self,
         }
         student_context.update(context or {})
-        template = self.render_template('static/html/openedx_cmi5_xblock.html', student_context)
+        template = render_template('static/html/openedx_cmi5_xblock.html', student_context)
         frag = Fragment(template)
 
-        frag.add_css(self.resource_string('static/css/openedx_cmi5_xblock.css'))
-        frag.add_javascript(self.resource_string('static/js/src/openedx_cmi5_xblock.js'))
+        frag.add_css(resource_string('static/css/openedx_cmi5_xblock.css'))
+        frag.add_javascript(resource_string('static/js/src/openedx_cmi5_xblock.js'))
         frag.initialize_js(
             'CMI5XBlock', json_args={
                 'popup_width': self.width or 800,
@@ -184,56 +169,145 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         )
         return frag
 
-    @property
-    def index_page_url(self):
-        """
-        Gets the URL of the CMI5 index page.
+    @XBlock.handler
+    def lrs_endpoint(self, request, _suffix):
+        """Handles requests related to the Learning Record Store (LRS) endpoint."""
+        if request.params.get('statementId') and request.method == 'PUT':
+            statement_data = get_request_body(request)
 
-        Returns an empty string if the package metadata or index page path is not available.
-        """
-        if not self.package_meta or not self.index_page_path:
-            return ''
+            lesson_status = statement_data.get('verb').get('display').get('en')
+            object_categories = statement_data.get('context', {}).get('contextActivities', {}).get('category')
 
-        folder = self.extract_folder_path
-        if self.storage.exists(os.path.join(self.extract_folder_base_path, self.index_page_path)):
-            # For backward-compatibility, we must handle the case when the xblock data
-            # is stored in the base folder.
-            folder = self.extract_folder_base_path
-            logger.warning('Serving CMI5 content from old-style path: %s', folder)
+            if lesson_status == 'failed' and self.lesson_status in ['passed', 'completed']:
+                return Response(status=204)
+            elif lesson_status in ['passed', 'failed']:
+                self.lesson_status = lesson_status
+                self.lesson_score = statement_data.get('result').get('score', {}).get('scaled', self.weight)
+                self.publish_grade()
+            elif lesson_status == 'completed' and is_cmi5_object(object_categories):
+                self.lesson_status = lesson_status
+                self.emit_completion(1.0)
+            return json_response({'success': True})
 
-        lms_cmi5_url = requests.utils.unquote(self.storage.url(os.path.join(folder, self.index_page_path)))
-        if self.is_url(self.index_page_path):
-            lms_cmi5_url = self.index_page_path
-        params_joining_symbol = '&' if self.is_params_exist(lms_cmi5_url) else '?'
-        lms_cmi5_url = lms_cmi5_url + params_joining_symbol
-        return lms_cmi5_url + self.get_launch_url_params()
+        elif request.params.get('stateId'):
+            state_id = request.params.get('stateId')
 
-    @property
-    def extract_folder_path(self):
-        """
-        It needs to depend on the content of the cmi5 package.
+            if state_id == 'LMS.LaunchData':
+                return Response(json.dumps(self.get_launch_state_data()), status=200)
+            elif state_id == 'suspendData' and request.method == 'GET':
+                return json_response(self.state_data)
+            elif state_id == 'suspendData' and request.method == 'PUT':
+                self.state_data = get_request_body(request)
+                return json_response({'success': True})
 
-        Otherwise, served media files might become stale when the package is update.
-        """
-        return os.path.join(self.extract_folder_base_path, self.package_meta['sha1'])
+        return json_response({'success': True})
 
-    @property
-    def extract_folder_base_path(self):
-        """Path to the folder where packages will be extracted."""
-        return os.path.join(self.cmi5_location(), self.location.block_id)
+    @XBlock.handler
+    def lrs_auth_endpoint(self, request, _suffix):
+        """Handles requests to the LRS authentication endpoint."""
+        user_id = self.get_current_user_attr('edx-platform.user_id')
+        session_id = request.cookies.get('sessionid', 'auth-session-id')
+        authtoken = 'user-id:{0}_session-id:{1}'.format(user_id, session_id)
 
-    def is_url(self, path):
-        """Checks if the given path is a valid URL."""
+        authtoken = hashlib.sha256(authtoken.encode()).hexdigest()
+        return json_response({'auth-token': authtoken})
+
+    @XBlock.handler
+    def studio_submit(self, request, _suffix):
+        """Handles the submission of the CMI5 XBlock studio form."""
+        self.display_name = request.params['display_name']
+        self.width = parse_int(request.params['width'], None)
+        self.height = parse_int(request.params['height'], None)
+        self.has_score = request.params['has_score'] == '1'
+        self.weight = parse_float(request.params['weight'], 1)
+        self.icon_class = 'problem' if self.has_score else 'video'
+
+        response = {'result': 'success', 'errors': []}
+        if not hasattr(request.params['file'], 'file'):
+            # File not uploaded
+            return json_response(response)
+
+        package_file = request.params['file'].file
+        self.update_package_meta(package_file)
+
+        # Clean storage folder, if it already exists
+        self.clean_storage()
+
+        # Extract zip file
         try:
-            validator = URLValidator(verify_exists=False)
-            validator(path)
-        except Exception as err:
-            return False
-        return True
+            self.extract_package(package_file)
+            self.update_package_fields()
+        except CMI5Error as e:
+            response['errors'].append(e.args[0])
+        return json_response(response)
 
-    def is_params_exist(self, url):
-        """Checks if query parameters exist in the given URL."""
-        return '?' in url
+# getters
+
+    def get_current_user_attr(self, attr: str):
+        """Get the value of a specific attribute for the current user."""
+        return self.get_current_user().opt_attrs.get(attr)
+
+    def get_current_user(self):
+        """Get the current user."""
+        return self.runtime.service(self, 'user').get_current_user()
+
+    def publish_grade(self):
+        """Publishes the grade to the XBlock runtime."""
+        self.runtime.publish(self, 'grade', {'value': self.get_grade(), 'max_value': self.weight})
+
+    def get_grade(self):
+        """Calculates and returns the normalized grade."""
+        lesson_score = 0 if self.is_failed else self.lesson_score
+        return lesson_score * self.weight
+
+    def get_erollment_id(self):
+        """Retrieves the enrollment ID of the current user for the XBlock's course."""
+        user_id = self.get_current_user_attr('edx-platform.user_id')
+        course_id = self.runtime.course_id
+        try:
+            enrollment = self.runtime.service(self, 'enrollments').get_active_enrollment_of_user_by_course(
+                user_id, course_id
+            )
+            return enrollment.id
+        except Exception as err:
+            return 'anonymous'
+
+    def get_enrollment_uuid(self):
+        """Generates and returns the enrollment UUID based on the enrollment ID."""
+        base_id = uuid.UUID('2af01743-8d97-423e-988a-25c69fa4ea66')
+        enrollment_uuid = uuid.uuid5(base_id, 'openedx-enrollment-id:{0}'.format(self.get_erollment_id()))
+        return str(enrollment_uuid)
+
+    def set_course_detail(self, prefix, root):
+        """Extracts course details from the provided XML root."""
+        course_data = {}
+
+        try:
+            course_structure = root.find('{prefix}course'.format(prefix=prefix))
+            course_data['course_id'] = course_structure.attrib['id']
+
+            course_title = course_structure.find('{prefix}title/{prefix}langstring'.format(prefix=prefix))
+            course_data['title'] = course_title.text if course_title is not None else None
+
+            course_description = course_structure.find('{prefix}description/{prefix}langstring'.format(prefix=prefix))
+            course_data['description'] = course_description.text if course_description is not None else None
+        except Exception as err:
+            logger.error('Error occurred while parsing course xml: %s', err)
+
+        self.course_data = course_data
+
+    @property
+    def is_failed(self):
+        """Checks if the lesson is in a failed status."""
+        return self.lesson_status == 'failed'
+
+    def update_package_meta(self, package_file):
+        """Updates the package metadata based on the provided package file."""
+        self.package_meta['sha1'] = get_sha1(package_file)
+        self.package_meta['name'] = package_file.name
+        self.package_meta['last_updated'] = timezone.now().strftime(DateTime.DATETIME_FORMAT)
+        self.package_meta['size'] = package_file.seek(0, 2)
+        package_file.seek(0)
 
     def get_launch_url_params(self):
         """Constructs and returns launch URL parameters for CMI5 integration."""
@@ -261,42 +335,43 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
         return all_parameters
 
-    @XBlock.handler
-    def studio_submit(self, request, _suffix):
-        """Handles the submission of the CMI5 XBlock studio form."""
-        self.display_name = request.params['display_name']
-        self.width = parse_int(request.params['width'], None)
-        self.height = parse_int(request.params['height'], None)
-        self.has_score = request.params['has_score'] == '1'
-        self.weight = parse_float(request.params['weight'], 1)
-        self.icon_class = 'problem' if self.has_score else 'video'
+    @property
+    def index_page_url(self):
+        """
+        Gets the URL of the CMI5 index page.
 
-        response = {'result': 'success', 'errors': []}
-        if not hasattr(request.params['file'], 'file'):
-            # File not uploaded
-            return self.json_response(response)
+        Returns an empty string if the package metadata or index page path is not available.
+        """
+        if not self.package_meta or not self.index_page_path:
+            return ''
 
-        package_file = request.params['file'].file
-        self.update_package_meta(package_file)
+        folder = self.extract_folder_path
+        if self.storage.exists(os.path.join(self.extract_folder_base_path, self.index_page_path)):
+            # For backward-compatibility, we must handle the case when the xblock data
+            # is stored in the base folder.
+            folder = self.extract_folder_base_path
+            logger.warning('Serving CMI5 content from old-style path: %s', folder)
 
-        # Clean storage folder, if it already exists
-        self.clean_storage()
+        lms_cmi5_url = requests.utils.unquote(self.storage.url(os.path.join(folder, self.index_page_path)))
+        if is_url(self.index_page_path):
+            lms_cmi5_url = self.index_page_path
+        params_joining_symbol = '&' if is_params_exist(lms_cmi5_url) else '?'
+        lms_cmi5_url = lms_cmi5_url + params_joining_symbol
+        return lms_cmi5_url + self.get_launch_url_params()
 
-        # Extract zip file
-        try:
-            self.extract_package(package_file)
-            self.update_package_fields()
-        except CMI5Error as e:
-            response['errors'].append(e.args[0])
-        return self.json_response(response)
+    @property
+    def extract_folder_path(self):
+        """
+        It needs to depend on the content of the cmi5 package.
 
-    def update_package_meta(self, package_file):
-        """Updates the package metadata based on the provided package file."""
-        self.package_meta['sha1'] = self.get_sha1(package_file)
-        self.package_meta['name'] = package_file.name
-        self.package_meta['last_updated'] = timezone.now().strftime(DateTime.DATETIME_FORMAT)
-        self.package_meta['size'] = package_file.seek(0, 2)
-        package_file.seek(0)
+        Otherwise, served media files might become stale when the package is update.
+        """
+        return os.path.join(self.extract_folder_base_path, self.package_meta['sha1'])
+
+    @property
+    def extract_folder_base_path(self):
+        """Path to the folder where packages will be extracted."""
+        return os.path.join(cmi5_location(), self.location.block_id)
 
     def clean_storage(self):
         """Cleans the storage by removing the previously unzipped content."""
@@ -378,82 +453,6 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         else:
             self.index_page_path = self.find_relative_file_path('index.html')
 
-    def set_course_detail(self, prefix, root):
-        """Extracts course details from the provided XML root."""
-        course_data = {}
-
-        try:
-            course_structure = root.find('{prefix}course'.format(prefix=prefix))
-            course_data['course_id'] = course_structure.attrib['id']
-
-            course_title = course_structure.find('{prefix}title/{prefix}langstring'.format(prefix=prefix))
-            course_data['title'] = course_title.text if course_title is not None else None
-
-            course_description = course_structure.find('{prefix}description/{prefix}langstring'.format(prefix=prefix))
-            course_data['description'] = course_description.text if course_description is not None else None
-        except Exception as err:
-            logger.error('Error occurred while parsing course xml: %s', err)
-
-        self.course_data = course_data
-
-    @XBlock.handler
-    def lrs_endpoint(self, request, _suffix):
-        """Handles requests related to the Learning Record Store (LRS) endpoint."""
-        if request.params.get('statementId') and request.method == 'PUT':
-            statement_data = self.get_request_body(request)
-
-            lesson_status = statement_data.get('verb').get('display').get('en')
-            object_categories = statement_data.get('context', {}).get('contextActivities', {}).get('category')
-
-            if lesson_status == 'failed' and self.lesson_status in ['passed', 'completed']:
-                return Response(status=204)
-            elif lesson_status in ['passed', 'failed']:
-                self.lesson_status = lesson_status
-                self.lesson_score = statement_data.get('result').get('score', {}).get('scaled', self.weight)
-                self.publish_grade()
-            elif lesson_status == 'completed' and self.is_cmi5_object(object_categories):
-                self.lesson_status = lesson_status
-                self.emit_completion(1.0)
-            return Response(status=204)
-
-        elif request.params.get('stateId'):
-            state_id = request.params.get('stateId')
-
-            if state_id == 'LMS.LaunchData':
-                return Response(json.dumps(self.get_launch_state_data()), status=200)
-            elif state_id == 'suspendData' and request.method == 'GET':
-                return self.json_response(self.state_data)
-            elif state_id == 'suspendData' and request.method == 'PUT':
-                self.state_data = self.get_request_body(request)
-                return Response(status=204)
-
-        return self.json_response({'success': True})
-
-    def get_request_body(self, request):
-        """Gets the JSON body from an HTTP request."""
-        return json.loads(request.body.decode('utf-8'))
-
-    def publish_grade(self):
-        """Publishes the grade to the XBlock runtime."""
-        self.runtime.publish(self, 'grade', {'value': self.get_grade(), 'max_value': self.weight})
-
-    def get_grade(self):
-        """Calculates and returns the normalized grade."""
-        lesson_score = 0 if self.is_failed else self.lesson_score
-        return lesson_score * self.weight
-
-    @property
-    def is_failed(self):
-        """Checks if the lesson is in a failed status."""
-        return self.lesson_status == 'failed'
-
-    def is_cmi5_object(self, categories):
-        """Checks if the given categories include the cmi5 category."""
-        if categories is None:
-            return False
-        cmi5_category = 'https://w3id.org/xapi/cmi5/context/categories/cmi5'
-        return any([category['id'] == cmi5_category for category in categories])
-
     def get_launch_state_data(self):
         """Generates and returns launch state data for the XBlock."""
         return {
@@ -478,34 +477,6 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             'launchMode': 'Normal',
             'launchParameters': ''
         }
-
-    @XBlock.handler
-    def lrs_auth_endpoint(self, request, _suffix):
-        """Handles requests to the LRS authentication endpoint."""
-        user_id = self.get_current_user_attr('edx-platform.user_id')
-        session_id = request.cookies.get('sessionid', 'auth-session-id')
-        authtoken = 'user-id:{0}_session-id:{1}'.format(user_id, session_id)
-
-        authtoken = hashlib.sha256(authtoken.encode()).hexdigest()
-        return self.json_response({'auth-token': authtoken})
-
-    def get_erollment_id(self):
-        """Retrieves the enrollment ID of the current user for the XBlock's course."""
-        user_id = self.get_current_user_attr('edx-platform.user_id')
-        course_id = self.runtime.course_id
-        try:
-            enrollment = self.runtime.service(self, 'enrollments').get_active_enrollment_of_user_by_course(
-                user_id, course_id
-            )
-            return enrollment.id
-        except Exception as err:
-            return 'anonymous'
-
-    def get_enrollment_uuid(self):
-        """Generates and returns the enrollment UUID based on the enrollment ID."""
-        base_id = uuid.UUID('2af01743-8d97-423e-988a-25c69fa4ea66')
-        enrollment_uuid = uuid.uuid5(base_id, 'openedx-enrollment-id:{0}'.format(self.get_erollment_id()))
-        return str(enrollment_uuid)
 
     def find_relative_file_path(self, filename):
         """Finds the relative file path within the XBlock's extract folder."""
@@ -534,28 +505,6 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             if path is not None:
                 return path
         return None
-
-    def cmi5_location(self):
-        """
-        Unzipped files will be stored in a media folder with this name.
-
-        thus accessible at a url with that also includes this name.
-        """
-        default_cmi5_location = 'cmi5'
-        return self.xblock_settings.get('LOCATION', default_cmi5_location)
-
-    @staticmethod
-    def get_sha1(file_descriptor):
-        """Get file hex digest (fingerprint)."""
-        block_size = 8 * 1024
-        sha1 = hashlib.sha1()
-        while True:
-            block = file_descriptor.read(block_size)
-            if not block:
-                break
-            sha1.update(block)
-        file_descriptor.seek(0)
-        return sha1.hexdigest()
 
     @property
     def storage(self):
@@ -600,39 +549,26 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         ]
 
 
-def parse_int(value, default):
+def resource_string(path):
+    """Handy helper for getting resources from our kit."""
+    data = pkg_resources.resource_string(__name__, path)
+    return data.decode('utf8')
+
+
+def render_template(template_path, context):
+    """Render a template with the provided context."""
+    template_str = resource_string(template_path)
+    template = Template(template_str)
+    return template.render(Context(context))
+
+def cmi5_location():
     """
-    Parses an integer.
+    Unzipped files will be stored in a media folder with this name.
 
-    returning the parsed value or a default if unsuccessful.
+    thus accessible at a url with that also includes this name.
     """
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def parse_float(value, default):
-    """
-    Parses a float.
-
-    Returning the parsed value or a default if unsuccessful.
-    """
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def parse_validate_positive_float(value, name):
-    """Parse and validate a given value as a positive float."""
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        raise ValueError('Could not parse value of "{}" (must be float): {}'.format(name, value))
-    if parsed < 0:
-        raise ValueError('Value of "{}" must not be negative: {}'.format(name, value))
-    return parsed
+    default_cmi5_location = 'cmi5'
+    return getattr(settings, 'XBLOCK_SETTINGS', {}).get('LOCATION', default_cmi5_location)
 
 
 class CMI5Error(Exception):

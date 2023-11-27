@@ -49,10 +49,11 @@ First, clone the repo in the requirements directory::
 
 exec to the lms container and install the XBlock::
 
-    tutor dev exec -it cms bash
+    tutor dev exec -it lms bash
     cd ../requirements
     pip install -e openedx-cmi5-xblock
 
+If you struggle with lms not displaying your cmi5 content in IFrame, then ``X_FRAME_OPTIONS = "SAMEORIGIN"`` is the settings you need to add a patch for to give access to your lms domain.
 
 Note: This is not the best practice to develop an XBlock, but it works if you don't want to build dev image.
 

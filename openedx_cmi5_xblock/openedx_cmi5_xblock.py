@@ -25,12 +25,12 @@ from xblock.fields import Boolean, DateTime, Dict, Float, Integer, Scope, String
 from xblock.fragment import Fragment
 
 from openedx_cmi5_xblock.utils.utility import (
-    json_response,
-    is_url,
-    is_cmi5_object,
-    is_params_exist,
     get_request_body,
     get_sha1,
+    is_cmi5_object,
+    is_params_exist,
+    is_url,
+    json_response,
     parse_float,
     parse_int,
 )
@@ -560,6 +560,7 @@ def render_template(template_path, context):
     template_str = resource_string(template_path)
     template = Template(template_str)
     return template.render(Context(context))
+
 
 def cmi5_location():
     """

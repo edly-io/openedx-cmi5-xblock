@@ -33,12 +33,12 @@ from openedx_cmi5_xblock.utils.utility import (
     json_response,
     parse_float,
     parse_int,
+    send_xapi_to_external_lrs,
 )
 
 logger = logging.getLogger(__name__)
 
 CMI5XML_FILENAME = 'cmi5.xml'
-
 
 def _(text):
     return text
@@ -171,9 +171,16 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     @XBlock.handler
     def lrs_endpoint(self, request, _suffix):
-        """Handles requests related to the Learning Record Store (LRS) endpoint."""
+        """
+        Handles requests related to the Learning Record Store (LRS) endpoint.
+        
+        Also sends the xapi statements obtained to the external LRS
+        """
+        lrs_url = "https://cloud.scorm.com/lrs/M4W0NJJ0HY/statements/"
+
         if request.params.get('statementId') and request.method == 'PUT':
             statement_data = get_request_body(request)
+            send_xapi_to_external_lrs(statement_data, lrs_url)
 
             lesson_status = statement_data.get('verb').get('display').get('en')
             object_categories = statement_data.get('context', {}).get('contextActivities', {}).get('category')
@@ -187,20 +194,22 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             elif lesson_status == 'completed' and is_cmi5_object(object_categories):
                 self.lesson_status = lesson_status
                 self.emit_completion(1.0)
-            return json_response({'success': True})
+
+            return Response(status=204)
 
         elif request.params.get('stateId'):
             state_id = request.params.get('stateId')
-
+            
             if state_id == 'LMS.LaunchData':
                 return Response(json.dumps(self.get_launch_state_data()), status=200)
             elif state_id == 'suspendData' and request.method == 'GET':
                 return json_response(self.state_data)
             elif state_id == 'suspendData' and request.method == 'PUT':
                 self.state_data = get_request_body(request)
-                return json_response({'success': True})
-
+                return Response(status=204)
+        
         return json_response({'success': True})
+    
 
     @XBlock.handler
     def lrs_auth_endpoint(self, request, _suffix):
@@ -241,8 +250,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             response['errors'].append(e.args[0])
         return json_response(response)
 
-# getters
-
+    #getters and setters
     def get_current_user_attr(self, attr: str):
         """Get the value of a specific attribute for the current user."""
         return self.get_current_user().opt_attrs.get(attr)
@@ -383,7 +391,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         """
         Recursively delete the contents of a directory in the Django default storage.
 
-        Unfortunately, this will not delete empty folders, as the default FileSystemStorage
+        This will not delete empty folders, as the default FileSystemStorage
         implementation does not allow it.
         """
         directories, files = self.storage.listdir(root)
@@ -495,7 +503,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         return path
 
     def get_file_path(self, filename, root):
-        """Same as `find_file_path`, but don't raise error on file not found."""
+        """Same as find_file_path(), but don't raise error if the file is not found."""
         subfolders, files = self.storage.listdir(root)
         for f in files:
             if f == filename:

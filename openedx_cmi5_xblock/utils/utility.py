@@ -2,8 +2,13 @@
 import hashlib
 import json
 
+import requests
+from requests.auth import HTTPBasicAuth
 from django.core.validators import URLValidator
 from webob import Response
+
+USERNAME = 'uEy9xZTOzB3fEr_JY78'
+PASSWORD = 's4qMwv9fDFceov_JxOU'
 
 
 def json_response(data):
@@ -50,6 +55,35 @@ def get_sha1(file_descriptor):
         sha1.update(block)
     file_descriptor.seek(0)
     return sha1.hexdigest()
+
+
+def send_xapi_to_external_lrs(xapi_data, lrs_url):
+    """Send xAPI data to the specified LRS URL."""
+
+    headers = {
+    'Content-Type': 'application/json',
+    'X-Experience-API-Version': '1.0.3'
+    }
+
+    try:
+        response = requests.post(lrs_url, headers=headers, auth=HTTPBasicAuth(USERNAME, PASSWORD), data=json.dumps(xapi_data))
+        response.raise_for_status()
+        
+        print("Successfully sent xAPI data to LRS.")
+        print(f"Response Status Code: {response.status_code}")
+        print(f"Response Content: {response.text}")
+
+    except requests.exceptions.HTTPError as errh:
+        print ("HTTP Error:",errh)
+
+    except requests.exceptions.ConnectionError as errc:
+        print ("Error Connecting:",errc)
+
+    except requests.exceptions.Timeout as errt:
+        print ("Timeout Error:",errt)
+
+    except requests.exceptions.RequestException as err:
+        print ("Error:",err)
 
 
 def parse_int(value, default):

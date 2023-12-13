@@ -3,12 +3,9 @@ import hashlib
 import json
 
 import requests
-from requests.auth import HTTPBasicAuth
 from django.core.validators import URLValidator
+from requests.auth import HTTPBasicAuth
 from webob import Response
-
-# USERNAME = 'uEy9xZTOzB3fEr_JY78'
-# PASSWORD = 's4qMwv9fDFceov_JxOU'
 
 
 def json_response(data):

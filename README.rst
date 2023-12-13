@@ -16,7 +16,7 @@ The XBlock SDK Workbench, including this XBlock, will be available on the list o
 Installation for tutor
 **********************
 
-This method works with [tutor](https://github.com/overhangio/tutor).
+This method works with `tutor <https://github.com/overhangio/tutor/>`__.
 
 First, go to your requirements directory::
 
@@ -35,7 +35,7 @@ and build a new image::
 
 In your studio, in your desired course, go to Advanced Settings and add `"openedx_cmi5_xblock"` in the Advanced Module List.
 
-If you want to test the cmi5 content, then [here](https://github.com/overhangio/tutor) you can get a demo file to test: 
+If you want to test the cmi5 content, then `here <https://xapi.com/cmi5/example-course-templates/>`__ you can get demo files to test: 
 
 Development
 ***********
@@ -57,6 +57,27 @@ exec to the lms container and install the XBlock::
 If you struggle with lms not displaying your cmi5 content in IFrame, then ``X_FRAME_OPTIONS = "SAMEORIGIN"`` is the settings you need to add a patch for to give access to your lms domain.
 
 Note: This is not the best practice to develop an XBlock, but it works if you don't want to build dev image.
+
+
+Advanced Configuration For External LRS
+***************************************
+
+The cmi5 Xblock may be configured to enable Third-party Learning Record Store to keep record of xapi statements outside of LMS. To configure that, add the following to Tutor by creating a `plugin <https://docs.tutor.overhang.io/plugins/>`__::
+
+    hooks.Filters.ENV_PATCHES.add_item(
+        (
+        "openedx-common-settings",
+        """
+    XBLOCK_SETTINGS["CMI5XBlock"] = {
+        "ACTIVITY_PROVIDER_KEY": "<LRS-activity-provider-key>",
+        "SECRET_KEY": "<LRS-secret-key>",
+        "EX_LRS_ENDPOINT": "<domain>/lrs/<LRS-app-id>/statements/"
+        # ... other settings
+    }"""
+        )
+    )
+
+Note: This method is for enabling External LRS for CMI5-Xblock in Tutor.
 
 
 Translating

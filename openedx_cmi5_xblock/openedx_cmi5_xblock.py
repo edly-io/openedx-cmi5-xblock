@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 CMI5XML_FILENAME = 'cmi5.xml'
 
+
 def _(text):
     return text
 
@@ -173,14 +174,20 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
     def lrs_endpoint(self, request, _suffix):
         """
         Handles requests related to the Learning Record Store (LRS) endpoint.
-        
+
         Also sends the xapi statements obtained to the external LRS
         """
-        lrs_url = "https://cloud.scorm.com/lrs/M4W0NJJ0HY/statements/"
+        credentials = self.get_credentials()
 
         if request.params.get('statementId') and request.method == 'PUT':
             statement_data = get_request_body(request)
-            send_xapi_to_external_lrs(statement_data, lrs_url)
+            # send statements to external lrs.
+            send_xapi_to_external_lrs(
+                statement_data,
+                credentials["EXTERNAL_LRS_URL"],
+                credentials["ACTIVITY_PROVIDER_KEY"],
+                credentials["SECRET_KEY"]
+                )
 
             lesson_status = statement_data.get('verb').get('display').get('en')
             object_categories = statement_data.get('context', {}).get('contextActivities', {}).get('category')
@@ -199,7 +206,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
         elif request.params.get('stateId'):
             state_id = request.params.get('stateId')
-            
+
             if state_id == 'LMS.LaunchData':
                 return Response(json.dumps(self.get_launch_state_data()), status=200)
             elif state_id == 'suspendData' and request.method == 'GET':
@@ -207,9 +214,8 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             elif state_id == 'suspendData' and request.method == 'PUT':
                 self.state_data = get_request_body(request)
                 return Response(status=204)
-        
+
         return json_response({'success': True})
-    
 
     @XBlock.handler
     def lrs_auth_endpoint(self, request, _suffix):
@@ -250,7 +256,30 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             response['errors'].append(e.args[0])
         return json_response(response)
 
-    #getters and setters
+    # getters and setters
+    def get_credentials(self):
+        """
+        Retrieves credentials from XBlock settings.
+
+        If any of the credentials is not found in the XBlock settings, an empty string is provided as a default value.
+        """
+        EXTERNAL_LRS_URL = self.xblock_settings.get(
+            "EX_LRS_ENDPOINT", ""
+        )
+
+        ACTIVITY_PROVIDER_KEY = self.xblock_settings.get(
+            "ACTIVITY_PROVIDER_KEY", ""
+        )
+        SECRET_KEY = self.xblock_settings.get(
+            "SECRET_KEY", ""
+        )
+
+        return {
+            "EXTERNAL_LRS_URL": EXTERNAL_LRS_URL,
+            "ACTIVITY_PROVIDER_KEY": ACTIVITY_PROVIDER_KEY,
+            "SECRET_KEY": SECRET_KEY
+        }
+
     def get_current_user_attr(self, attr: str):
         """Get the value of a specific attribute for the current user."""
         return self.get_current_user().opt_attrs.get(attr)

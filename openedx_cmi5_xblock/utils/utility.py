@@ -10,6 +10,7 @@ from webob import Response
 
 logger = logging.getLogger(__name__)
 
+
 def json_response(data):
     """Generate a JSON response."""
     return Response(json.dumps(data), content_type='application/json', charset='utf8')

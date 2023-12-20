@@ -69,8 +69,8 @@ The cmi5 Xblock may be configured to enable Third-party Learning Record Store to
         "openedx-common-settings",
         """
     XBLOCK_SETTINGS["CMI5XBlock"] = {
-        "ACTIVITY_PROVIDER_KEY": "<LRS-activity-provider-key>",
-        "SECRET_KEY": "<LRS-secret-key>",
+        "LRS_AUTH_KEY": "<LRS-activity-provider-key>",
+        "LRS_AUTH_SECRET": "<LRS-secret-key>",
         "EX_LRS_ENDPOINT": "<domain>/lrs/<LRS-app-id>/statements/"
         # ... other settings
     }"""

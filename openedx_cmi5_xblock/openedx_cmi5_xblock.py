@@ -185,8 +185,8 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             send_xapi_to_external_lrs(
                 statement_data,
                 credentials["EXTERNAL_LRS_URL"],
-                credentials["ACTIVITY_PROVIDER_KEY"],
-                credentials["SECRET_KEY"]
+                credentials["LRS_AUTH_KEY"],
+                credentials["LRS_AUTH_SECRET"]
                 )
 
             lesson_status = statement_data.get('verb').get('display').get('en')
@@ -267,17 +267,17 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             "EX_LRS_ENDPOINT", ""
         )
 
-        ACTIVITY_PROVIDER_KEY = self.xblock_settings.get(
-            "ACTIVITY_PROVIDER_KEY", ""
+        LRS_AUTH_KEY = self.xblock_settings.get(
+            "LRS_AUTH_KEY", ""
         )
-        SECRET_KEY = self.xblock_settings.get(
-            "SECRET_KEY", ""
+        LRS_AUTH_SECRET = self.xblock_settings.get(
+            "LRS_AUTH_SECRET", ""
         )
 
         return {
             "EXTERNAL_LRS_URL": EXTERNAL_LRS_URL,
-            "ACTIVITY_PROVIDER_KEY": ACTIVITY_PROVIDER_KEY,
-            "SECRET_KEY": SECRET_KEY
+            "LRS_AUTH_KEY": LRS_AUTH_KEY,
+            "LRS_AUTH_SECRET": LRS_AUTH_SECRET
         }
 
     def get_current_user_attr(self, attr: str):

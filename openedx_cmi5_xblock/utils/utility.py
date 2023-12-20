@@ -1,12 +1,14 @@
 """Openedx CMI5 xblock utility functions."""
 import hashlib
 import json
+import logging
 
 import requests
 from django.core.validators import URLValidator
 from requests.auth import HTTPBasicAuth
 from webob import Response
 
+logger = logging.getLogger(__name__)
 
 def json_response(data):
     """Generate a JSON response."""
@@ -54,7 +56,7 @@ def get_sha1(file_descriptor):
     return sha1.hexdigest()
 
 
-def send_xapi_to_external_lrs(xapi_data, lrs_url, ACTIVITY_PROVIDER_KEY, SECRET_KEY):
+def send_xapi_to_external_lrs(xapi_data, lrs_url, LRS_AUTH_KEY, LRS_AUTH_SECRET):
     """Send xAPI data to the specified LRS URL."""
     timeout = 10
     headers = {
@@ -66,27 +68,27 @@ def send_xapi_to_external_lrs(xapi_data, lrs_url, ACTIVITY_PROVIDER_KEY, SECRET_
         response = requests.post(
             lrs_url,
             headers=headers,
-            auth=HTTPBasicAuth(ACTIVITY_PROVIDER_KEY, SECRET_KEY),
+            auth=HTTPBasicAuth(LRS_AUTH_KEY, LRS_AUTH_SECRET),
             data=json.dumps(xapi_data),
             timeout=timeout
         )
         response.raise_for_status()
 
-        print("Successfully sent xAPI data to LRS.")
-        print(f"Response Status Code: {response.status_code}")
-        print(f"Response Content: {response.text}")
+        logger.info("Successfully sent xAPI data to LRS.")
+        logger.info(f"Response Status Code: {response.status_code}")
+        logger.info(f"Response Content: {response.text}")
 
     except requests.exceptions.HTTPError as errh:
-        print("HTTP Error:", errh)
+        logger.error("HTTP Error: %s", errh)
 
     except requests.exceptions.ConnectionError as errc:
-        print("Error Connecting:", errc)
+        logger.error("Error Connecting: %s", errc)
 
     except requests.exceptions.Timeout as errt:
-        print("Timeout Error:", errt)
+        logger.error("Timeout Error: %s", errt)
 
     except requests.exceptions.RequestException as err:
-        print("Error:", err)
+        logger.error("Error: %s", err)
 
 
 def parse_int(value, default):
@@ -111,14 +113,3 @@ def parse_float(value, default):
         return float(value)
     except (TypeError, ValueError):
         return default
-
-
-def parse_validate_positive_float(value, name):
-    """Parse and validate a given value as a positive float."""
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        raise ValueError('Could not parse value of "{}" (must be float): {}'.format(name, value))
-    if parsed < 0:
-        raise ValueError('Value of "{}" must not be negative: {}'.format(name, value))
-    return parsed

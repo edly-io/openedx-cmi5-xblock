@@ -264,7 +264,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         If any of the credentials is not found in the XBlock settings, an empty string is provided as a default value.
         """
         EXTERNAL_LRS_URL = self.xblock_settings.get(
-            "EX_LRS_ENDPOINT", ""
+            "LRS_ENDPOINT", ""
         )
 
         LRS_AUTH_KEY = self.xblock_settings.get(

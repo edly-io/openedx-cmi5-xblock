@@ -2,11 +2,26 @@
 
 <div class="openedx_cmi5_xblock_block">
     <h3 class="xblock-title mb-2">{{title}}</h3>
+    <br>
+    
     {% if index_page_url %}
+    <h5 class="xblock-title mb-2"> {% trans "Available Assignables:" %}</h5>
+    <ol>
+        {% for au_url in au_urls %}
+                <li>
+                    <a href="{{ au_url.url }}" target="_blank">
+                        <span>{% trans "AU No." %}</span> {{ forloop.counter }}
+                    </a>
+                    ({%trans "Launch: "%} {{au_url.launch_method}})
+                </li>
+            
+        {% endfor %}
+    </ol>
+
     <div class="cmi5-content">
         <iframe
             class="cmi5-embedded"
-            src="{{ index_page_url }}"
+            src=""
             width="{% if cmi5_xblock.width %}{{ cmi5_xblock.width }}%{% else %}100%{% endif %}"
             height="{% if cmi5_xblock.height %}{{ cmi5_xblock.height }}{% else %}450{% endif %}"
         >

@@ -1,5 +1,6 @@
 """Openedx CMI5 XBlock implementation."""
 
+import copy
 import hashlib
 import json
 import logging
@@ -21,7 +22,7 @@ from six import string_types
 from webob import Response
 from xblock.completable import CompletableXBlockMixin
 from xblock.core import XBlock
-from xblock.fields import Boolean, DateTime, Dict, Float, Integer, Scope, String
+from xblock.fields import Boolean, DateTime, Dict, Float, Integer, List, Scope, String
 from xblock.fragment import Fragment
 
 from openedx_cmi5_xblock.utils.utility import (
@@ -121,6 +122,13 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         scope=Scope.settings,
     )
 
+    au_urls = List(
+        display_name=_('AU URLs'),
+        help=_('List of AU URLs'),
+        default=[],
+        scope=Scope.content,
+    )
+
     has_author_view = True
 
     def author_view(self, context=None):
@@ -159,6 +167,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         student_context = {
             'title': self.display_name,
             'index_page_url': self.index_page_url,
+            'au_urls': self.launch_all_au_urls,
             'cmi5_xblock': self,
         }
         student_context.update(context or {})
@@ -259,6 +268,49 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         except CMI5Error as e:
             response['errors'].append(e.args[0])
         return json_response(response)
+
+    @property
+    def launch_all_au_urls(self):
+        """Gets the URLs of all the cmi5 AUs."""
+        temp_au_list = copy.deepcopy(self.au_urls)
+
+        for au in temp_au_list:
+            au['url'] = self.launch_au_url(au['url'])
+
+        return temp_au_list
+
+    def launch_au_url(self, url):
+        """Handles the multiple AUs and append launch params with url."""
+        if not self.package_meta or not url:
+            return ''
+
+        lms_cmi5_url = self.make_launch_url(url)
+        return lms_cmi5_url
+
+    @property
+    def index_page_url(self):
+        """
+        Gets the URL of the CMI5 index page.
+
+        Returns an empty string if the package metadata or index page path is not available.
+        """
+        if not self.package_meta or not self.index_page_path:
+            return ''
+
+        lms_cmi5_url = self.make_launch_url(self.index_page_path)
+        return lms_cmi5_url
+
+    def make_launch_url(self, url):
+        """Make the launch url for the AUs of cmi5."""
+        if is_url(url):
+            lms_cmi5_url = url
+        else:
+            folder = self.extract_folder_path
+            lms_cmi5_url = requests.utils.unquote(self.storage.url(os.path.join(folder, url)))
+
+        params_joining_symbol = '&' if is_params_exist(lms_cmi5_url) else '?'
+        lms_cmi5_url = lms_cmi5_url + params_joining_symbol
+        return lms_cmi5_url + self.get_launch_url_params()
 
     # getters and setters
     def get_credentials(self):
@@ -378,26 +430,6 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         return all_parameters
 
     @property
-    def index_page_url(self):
-        """
-        Gets the URL of the CMI5 index page.
-
-        Returns an empty string if the package metadata or index page path is not available.
-        """
-        if not self.package_meta or not self.index_page_path:
-            return ''
-
-        if is_url(self.index_page_path):
-            lms_cmi5_url = self.index_page_path
-        else:
-            folder = self.extract_folder_path
-            lms_cmi5_url = requests.utils.unquote(self.storage.url(os.path.join(folder, self.index_page_path)))
-
-        params_joining_symbol = '&' if is_params_exist(lms_cmi5_url) else '?'
-        lms_cmi5_url = lms_cmi5_url + params_joining_symbol
-        return lms_cmi5_url + self.get_launch_url_params()
-
-    @property
     def extract_folder_path(self):
         """
         It needs to depend on the content of the cmi5 package.
@@ -486,9 +518,21 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         prefix = '{' + namespace + '}' if namespace else ''
         self.set_course_detail(prefix, root)
 
-        au_url = root.find('.//{prefix}au/{prefix}url'.format(prefix=prefix))
-        if au_url is not None:
-            self.index_page_path = au_url.text
+        au_elements = root.findall('.//{prefix}au'.format(prefix=prefix))
+        if au_elements:
+            self.index_page_path = au_elements[0].find('./{prefix}url'.format(prefix=prefix)).text
+            au_data_list = []
+            for au in au_elements:
+                au_url = au.find('./{prefix}url'.format(prefix=prefix)).text
+                launch_method = au.get('launchMethod', 'AnyWindow')
+
+                au_data = {
+                    'url': au_url,
+                    'launch_method': launch_method
+                }
+                au_data_list.append(au_data)
+
+            self.au_urls = au_data_list
         else:
             self.index_page_path = self.find_relative_file_path('index.html')
 

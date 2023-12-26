@@ -38,8 +38,6 @@ from openedx_cmi5_xblock.utils.utility import (
 
 logger = logging.getLogger(__name__)
 
-CMI5XML_FILENAME = 'cmi5.xml'
-
 
 def _(text):
     return text
@@ -105,7 +103,8 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     width = Integer(
         display_name=_('Display width (px)'),
-        help=_('Width of iframe (default: 100%)'),
+        help=_('Width of iframe as percentage of container (default: 100)'),
+        default=100,
         scope=Scope.settings,
     )
 
@@ -113,6 +112,12 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         display_name=_('Display height (px)'),
         help=_('Height of iframe'),
         default=450,
+        scope=Scope.settings,
+    )
+
+    xml_file_name = String(
+        help=_('Course structure xml file name'),
+        default='cmi5.xml',
         scope=Scope.settings,
     )
 
@@ -231,8 +236,8 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
     def studio_submit(self, request, _suffix):
         """Handles the submission of the CMI5 XBlock studio form."""
         self.display_name = request.params['display_name']
-        self.width = parse_int(request.params['width'], None)
-        self.height = parse_int(request.params['height'], None)
+        self.width = parse_int(request.params['width'], 100)
+        self.height = parse_int(request.params['height'], 450)
         self.has_score = request.params['has_score'] == '1'
         self.weight = parse_float(request.params['weight'], 1)
 
@@ -381,17 +386,13 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         """
         if not self.package_meta or not self.index_page_path:
             return ''
-
-        folder = self.extract_folder_path
-        if self.storage.exists(os.path.join(self.extract_folder_base_path, self.index_page_path)):
-            # For backward-compatibility, we must handle the case when the xblock data
-            # is stored in the base folder.
-            folder = self.extract_folder_base_path
-            logger.warning('Serving CMI5 content from old-style path: %s', folder)
-
-        lms_cmi5_url = requests.utils.unquote(self.storage.url(os.path.join(folder, self.index_page_path)))
+        
         if is_url(self.index_page_path):
             lms_cmi5_url = self.index_page_path
+        else:
+            folder = self.extract_folder_path
+            lms_cmi5_url = requests.utils.unquote(self.storage.url(os.path.join(folder, self.index_page_path)))
+            
         params_joining_symbol = '&' if is_params_exist(lms_cmi5_url) else '?'
         lms_cmi5_url = lms_cmi5_url + params_joining_symbol
         return lms_cmi5_url + self.get_launch_url_params()
@@ -448,7 +449,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
             # Find root folder which contains cmi5.xml
             for zipinfo in zipinfos:
-                if os.path.basename(zipinfo.filename) == CMI5XML_FILENAME:
+                if os.path.basename(zipinfo.filename) == self.xml_file_name:
                     depth = len(os.path.split(zipinfo.filename))
                     if depth < root_depth or root_depth < 0:
                         root_path = os.path.dirname(zipinfo.filename)
@@ -464,13 +465,14 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
                         self.storage.save(dest_path, ContentFile(cmi5_zipfile.read(zipinfo.filename)))
 
     def save_xml_file(self, package_file):
-        """Saves an XML file from the CMI5 package."""
-        dest_path = os.path.join(self.extract_folder_path, package_file.filename)
-        self.storage.save(dest_path, ContentFile(package_file.filename))
+        """Saves an XML file from the CMI5 package."""        
+        self.xml_file_name = getattr(package_file, 'filename', package_file.name)
+        dest_path = os.path.join(self.extract_folder_path, self.xml_file_name)
+        self.storage.save(dest_path, ContentFile(package_file.read()))
 
     def update_package_fields(self):
-        """Update version and index page path fields."""
-        cmi5_path = self.find_file_path(CMI5XML_FILENAME)
+        """Update version and index page path fields."""        
+        cmi5_path = self.find_file_path(self.xml_file_name)
         cmi5_file = self.storage.open(cmi5_path)
         tree = ET.parse(cmi5_file)
         cmi5_file.seek(0)

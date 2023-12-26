@@ -19,9 +19,10 @@ def json_response(data):
 def is_url(path):
     """Checks if the given path is a valid URL."""
     try:
-        validator = URLValidator(verify_exists=False)
+        validator = URLValidator()
         validator(path)
     except Exception as err:
+        logger.error("Invalid URL (%s): %s", path, err)
         return False
     return True
 

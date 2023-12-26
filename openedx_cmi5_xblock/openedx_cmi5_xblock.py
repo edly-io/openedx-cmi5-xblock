@@ -465,13 +465,13 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
                         self.storage.save(dest_path, ContentFile(cmi5_zipfile.read(zipinfo.filename)))
 
     def save_xml_file(self, package_file):
-        """Saves an XML file from the CMI5 package."""        
+        """Saves an XML file from the CMI5 package."""
         self.xml_file_name = getattr(package_file, 'filename', package_file.name)
         dest_path = os.path.join(self.extract_folder_path, self.xml_file_name)
         self.storage.save(dest_path, ContentFile(package_file.read()))
 
     def update_package_fields(self):
-        """Update version and index page path fields."""        
+        """Update version and index page path fields."""
         cmi5_path = self.find_file_path(self.xml_file_name)
         cmi5_file = self.storage.open(cmi5_path)
         tree = ET.parse(cmi5_file)

@@ -386,13 +386,13 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         """
         if not self.package_meta or not self.index_page_path:
             return ''
-        
+
         if is_url(self.index_page_path):
             lms_cmi5_url = self.index_page_path
         else:
             folder = self.extract_folder_path
             lms_cmi5_url = requests.utils.unquote(self.storage.url(os.path.join(folder, self.index_page_path)))
-            
+
         params_joining_symbol = '&' if is_params_exist(lms_cmi5_url) else '?'
         lms_cmi5_url = lms_cmi5_url + params_joining_symbol
         return lms_cmi5_url + self.get_launch_url_params()

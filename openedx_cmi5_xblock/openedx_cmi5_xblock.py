@@ -158,7 +158,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             'field_width': self.fields['width'],
             'field_height': self.fields['height'],
             'cmi5_xblock': self
-        }        
+        }
         studio_context.update(context or {})
         template = render_template('static/html/studio.html', studio_context)
         frag = Fragment(template)

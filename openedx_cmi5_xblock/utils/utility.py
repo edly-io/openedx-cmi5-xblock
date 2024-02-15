@@ -4,8 +4,8 @@ import json
 import logging
 
 import requests
-from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from requests.auth import HTTPBasicAuth
 from webob import Response
 

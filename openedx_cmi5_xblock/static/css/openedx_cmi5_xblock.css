@@ -7,3 +7,19 @@
 .openedx_cmi5_xblock_block p {
     cursor: pointer;
 }
+
+.cmi5-column {
+    float: left;
+}
+
+.cmi5-nav {
+    width: 25%;
+}
+
+.cmi5-content {
+    width: 75%;    
+}
+
+.cmi5-content iframe {
+    border: 0;
+}

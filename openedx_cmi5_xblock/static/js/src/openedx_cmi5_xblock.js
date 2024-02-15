@@ -13,15 +13,18 @@ function CMI5XBlock(runtime, element) {
       $('ol a').click(function(event) {
           event.preventDefault();
           var href = $(this).attr('href');
-          var liText = $(this).closest('li').text().trim();
-          updateIframeSrc(href, liText);
+          var launchMethod = $(this).data("launch-method");
+          updateIframeSrc(href, launchMethod);
 
       });
 
-      function updateIframeSrc(href, liText) {
-          if (liText.includes('AnyWindow')) {
+      function updateIframeSrc(href, launchMethod) {
+          // TODO: Uncomment the code below when we have figured out a workaround of limitations imposed by
+          // browsers while loading iframe from different domain than host
+          launchMethod = 'OwnWindow';
+          if (launchMethod === 'AnyWindow') {
               $('.cmi5-embedded').attr('src', href);
-          } else if (liText.includes('OwnWindow')) {
+          } else {
               window.open(href, '_blank');
           }
       }

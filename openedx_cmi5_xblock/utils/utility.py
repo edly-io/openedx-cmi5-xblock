@@ -5,6 +5,7 @@ import logging
 
 import requests
 from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError
 from requests.auth import HTTPBasicAuth
 from webob import Response
 
@@ -21,8 +22,8 @@ def is_url(path):
     try:
         validator = URLValidator()
         validator(path)
-    except Exception as err:
-        logger.error("Invalid URL (%s): %s", path, err)
+    except ValidationError as err:
+        logger.debug("Invalid URL (%s): %s", path, err)
         return False
     return True
 

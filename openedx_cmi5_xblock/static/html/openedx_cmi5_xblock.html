@@ -1,24 +1,22 @@
 {% load i18n %}
 
 <div class="openedx_cmi5_xblock_block">
-    <h3 class="xblock-title mb-2">{{title}}</h3>
-    <br>
-    
+    {% if cmi5_xblock.has_score %}
+    <p> ({{ cmi5_xblock.lesson_score}}/{{ cmi5_xblock.weight | floatformat:1 }} {% trans "points" %})</p>
+    {% endif %}
     {% if index_page_url %}
-    <h5 class="xblock-title mb-2"> {% trans "Available Assignables:" %}</h5>
+    <!-- <h5 class="xblock-title mb-2"> {% trans "Available Assignable Units:" %}</h5> -->
+    <div class="{% if cmi5_xblock.au_has_any_window %}cmi5-nav cmi5-column{% endif %}">
     <ol>
         {% for au_url in au_urls %}
                 <li>
-                    <a href="{{ au_url.url }}" target="_blank">
-                        <span>{% trans "AU No." %}</span> {{ forloop.counter }}
-                    </a>
-                    ({%trans "Launch: "%} {{au_url.launch_method}})
+                    <a href="{{ au_url.url }}" target="_blank" data-launch-method="{{au_url.launch_method}}">{{au_url.title}}</a>
                 </li>
-            
         {% endfor %}
     </ol>
-
-    <div class="cmi5-content">
+    </div>
+    {% if cmi5_xblock.au_has_any_window %}
+    <div class="cmi5-content cmi5-column">
         <iframe
             class="cmi5-embedded"
             src=""
@@ -27,6 +25,7 @@
         >
         </iframe>
     </div>
+    {% endif %}
     {% elif message %}
     <p>{{ message }}</p>
     {% endif %}

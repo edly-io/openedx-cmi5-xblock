@@ -23,7 +23,7 @@ from webob import Response
 from xblock.completable import CompletableXBlockMixin
 from xblock.core import XBlock
 from xblock.fields import Boolean, DateTime, Dict, Float, Integer, List, Scope, String
-from xblock.fragment import Fragment
+from web_fragments.fragment import Fragment
 
 from openedx_cmi5_xblock.utils.utility import (
     get_request_body,
@@ -129,6 +129,12 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         scope=Scope.content,
     )
 
+    au_has_any_window = Boolean(
+        display_name=_('Has one of the AUs launch method is AnyWindow'),
+        default=False,
+        scope=Scope.settings
+    )
+
     has_author_view = True
 
     def author_view(self, context=None):
@@ -152,8 +158,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             'field_width': self.fields['width'],
             'field_height': self.fields['height'],
             'cmi5_xblock': self
-        }
-
+        }        
         studio_context.update(context or {})
         template = render_template('static/html/studio.html', studio_context)
         frag = Fragment(template)
@@ -193,16 +198,8 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         """
         credentials = self.get_credentials()
 
-        if request.params.get('statementId') and request.method == 'PUT' and credentials["EXTERNAL_LRS_URL"]:
+        if request.params.get('statementId') and request.method == 'PUT':
             statement_data = get_request_body(request)
-            # send statements to external lrs.
-            send_xapi_to_external_lrs(
-                statement_data,
-                credentials["EXTERNAL_LRS_URL"],
-                credentials["LRS_AUTH_KEY"],
-                credentials["LRS_AUTH_SECRET"]
-                )
-
             lesson_status = statement_data.get('verb').get('display').get('en')
             object_categories = statement_data.get('context', {}).get('contextActivities', {}).get('category')
 
@@ -215,6 +212,15 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             elif lesson_status == 'completed' and is_cmi5_object(object_categories):
                 self.lesson_status = lesson_status
                 self.emit_completion(1.0)
+
+            # send statements to external lrs.
+            if credentials["EXTERNAL_LRS_URL"]:
+                send_xapi_to_external_lrs(
+                    statement_data,
+                    credentials["EXTERNAL_LRS_URL"],
+                    credentials["LRS_AUTH_KEY"],
+                    credentials["LRS_AUTH_SECRET"]
+                )
 
             return Response(status=204)
 
@@ -355,11 +361,12 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     def get_erollment_id(self):
         """Retrieves the enrollment ID of the current user for the XBlock's course."""
-        user_id = self.get_current_user_attr('edx-platform.user_id')
-        course_id = self.runtime.course_id
+        django_user = self.runtime.service(self, 'user').get_current_django_user()
+        course_id = self.scope_ids.usage_id.context_key
+
         try:
-            enrollment = self.runtime.service(self, 'enrollments').get_active_enrollment_of_user_by_course(
-                user_id, course_id
+            enrollment = self.runtime.service(self, 'enrollments').get_active_enrollments_by_course_and_user(
+                course_id, django_user
             )
             return enrollment.id
         except Exception as err:
@@ -522,17 +529,24 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         if au_elements:
             self.index_page_path = au_elements[0].find('./{prefix}url'.format(prefix=prefix)).text
             au_data_list = []
+            launch_methods = []
             for au in au_elements:
                 au_url = au.find('./{prefix}url'.format(prefix=prefix)).text
+                au_title = au.find('./{prefix}title/{prefix}langstring'.format(prefix=prefix)).text
                 launch_method = au.get('launchMethod', 'AnyWindow')
+                launch_methods.append(launch_method)
 
                 au_data = {
-                    'url': au_url,
+                    'url': au_url.strip(),
+                    'title': au_title,
                     'launch_method': launch_method
                 }
                 au_data_list.append(au_data)
 
             self.au_urls = au_data_list
+            # TODO: Uncomment the code below when we have figured out a workaround of limitations imposed by
+            # browsers while loading iframe from different domain than host
+            # self.au_has_any_window = True if 'AnyWindow' in launch_methods else False
         else:
             self.index_page_path = self.find_relative_file_path('index.html')
 

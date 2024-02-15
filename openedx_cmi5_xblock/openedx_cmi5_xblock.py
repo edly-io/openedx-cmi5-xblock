@@ -19,11 +19,11 @@ from django.template import Context, Template
 from django.utils import timezone
 from django.utils.module_loading import import_string
 from six import string_types
+from web_fragments.fragment import Fragment
 from webob import Response
 from xblock.completable import CompletableXBlockMixin
 from xblock.core import XBlock
 from xblock.fields import Boolean, DateTime, Dict, Float, Integer, List, Scope, String
-from web_fragments.fragment import Fragment
 
 from openedx_cmi5_xblock.utils.utility import (
     get_request_body,

@@ -10,7 +10,7 @@ import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 
-import pkg_resources
+import importlib_resources
 import requests
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -361,12 +361,12 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
     def get_erollment_id(self):
         """Retrieves the enrollment ID of the current user for the XBlock's course."""
-        django_user = self.runtime.service(self, 'user').get_current_django_user()
+        django_user_id = self.get_current_user_attr('edx-platform.user_id')
         course_id = self.scope_ids.usage_id.context_key
 
         try:
             enrollment = self.runtime.service(self, 'enrollments').get_active_enrollments_by_course_and_user(
-                course_id, django_user
+                course_id, django_user_id
             )
             return enrollment.id
         except Exception as err:
@@ -648,7 +648,7 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
 def resource_string(path):
     """Handy helper for getting resources from our kit."""
-    data = pkg_resources.resource_string(__name__, path)
+    data = importlib_resources.files(__name__).joinpath(path).read_bytes()
     return data.decode('utf8')
 
 

@@ -661,7 +661,6 @@ def resource_string(path):
         data = importlib_resources.files(__name__).joinpath(path).read_bytes()
     except TypeError:
         data = importlib_resources.files(__package__).joinpath(path).read_bytes()
-    return data.decode("utf8")
     return data.decode('utf8')
 
 

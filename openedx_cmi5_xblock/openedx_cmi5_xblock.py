@@ -10,7 +10,15 @@ import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 
-import importlib_resources
+try:
+    # Older Open edX releases (Redwood and earlier) install a backported version of
+    # importlib.resources: https://pypi.org/project/importlib-resources/
+    import importlib_resources
+except ModuleNotFoundError:
+    # Starting with Sumac, Open edX drops importlib-resources in favor of the standard library:
+    # https://docs.python.org/3/library/importlib.resources.html#module-importlib.resources
+    from importlib import resources as importlib_resources
+
 import requests
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -648,7 +656,10 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
 
 def resource_string(path):
     """Handy helper for getting resources from our kit."""
-    data = importlib_resources.files(__name__).joinpath(path).read_bytes()
+    try:
+        data = importlib_resources.files(__name__).joinpath(path).read_bytes()
+    except TypeError:
+        data = importlib_resources.files(__package__).joinpath(path).read_bytes()
     return data.decode('utf8')
 
 

@@ -2,4 +2,4 @@
 
 from .openedx_cmi5_xblock import CMI5XBlock
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'

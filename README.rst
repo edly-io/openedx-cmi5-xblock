@@ -10,27 +10,54 @@ Xblock to integrate CMI5 content in Open edX. It provides following features
 Setup
 ********************
 
-Install CMI5 XBlock
+Install CMI5 XBlock:
 
-    $ pip install openedx-cmi5-xblock
+.. code-block:: bash
 
-Enable XBlock in Studio
+    pip install openedx-cmi5-xblock
 
-    `Settings -> Advanced Settings -> Advanced Module List` add `openedx_cmi5_xblock` 
+Update course advanced settings by adding `openedx_cmi5_xblock` as shown in below image:
 
-Use it in any of the units by adding `CMI5 Module` from Advanced blocks list
+.. image:: https://github.com/edly-io/ai-coach-xblock/blob/master/docs/images/update_settings.png?raw=True
+   :alt: Update Advanced Settings
+
+Go back to your course content. In the "Add New Component" section, click "Advanced", and then "CMI5 module". Click "Edit" on the newly-created module: this is where you will upload your content package. It should be a .zip file or a .xml file containing the cmi5 content.
+
+The cmi5 unit will display a link in the studio and the LMS. Clicking on the link will take users to a new tab where they can interact with the cmi5 content.
+
+.. image:: https://github.com/edly-io/ai-coach-xblock/blob/master/docs/images/studio_view.png?raw=True
+   :alt: Update Advanced Settings
+
+.. image:: https://github.com/edly-io/ai-coach-xblock/blob/master/docs/images/lms_view.png?raw=True
+   :alt: Update Advanced Settings
 
 Advanced configuration for sending data to LRS
 **********************************************
 
 CMI5 Xblock can be configured to push xAPI statements to a Third-party Learning Record Store. To configure that, use these settings
 
-.. code-block::
+.. code-block:: python
 
     XBLOCK_SETTINGS["CMI5XBlock"] = {
         "LRS_AUTH_KEY": "<LRS-activity-provider-key>",
         "LRS_AUTH_SECRET": "<LRS-secret-key>",
         "LRS_ENDPOINT": "<domain>/lrs/<LRS-app-id>/statements/"
-        # ... other settings
     }
 
+These settings may be added using Tutor by creating a `tutor plugin <https://docs.tutor.overhang.io/plugins/>`__:
+
+.. code-block:: python
+
+    from tutor import hooks
+
+    hooks.Filters.ENV_PATCHES.add_item(
+        (
+            "openedx-common-settings",
+            """
+    XBLOCK_SETTINGS["CMI5XBlock"] = {
+        "LRS_AUTH_KEY": "<LRS-activity-provider-key>",
+        "LRS_AUTH_SECRET": "<LRS-secret-key>",
+        "LRS_ENDPOINT": "<domain>/lrs/<LRS-app-id>/statements/"
+    }"""
+    )
+    )

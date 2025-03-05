@@ -18,17 +18,17 @@ Install CMI5 XBlock:
 
 Update course advanced settings by adding `openedx_cmi5_xblock` as shown in below image:
 
-.. image:: https://github.com/edly-io/ai-coach-xblock/blob/master/docs/images/update_settings.png?raw=True
+.. image:: https://github.com/edly-io/openedx-cmi5-xblock/blob/master/docs/images/update_settings.png?raw=True
    :alt: Update Advanced Settings
 
 Go back to your course content. In the "Add New Component" section, click "Advanced", and then "CMI5 module". Click "Edit" on the newly-created module: this is where you will upload your content package. It should be a .zip file or a .xml file containing the cmi5 content.
 
 The cmi5 unit will display a link in the studio and the LMS. Clicking on the link will take users to a new tab where they can interact with the cmi5 content.
 
-.. image:: https://github.com/edly-io/ai-coach-xblock/blob/master/docs/images/studio_view.png?raw=True
+.. image:: https://github.com/edly-io/openedx-cmi5-xblock/blob/master/docs/images/studio_view.png?raw=True
    :alt: Update Advanced Settings
 
-.. image:: https://github.com/edly-io/ai-coach-xblock/blob/master/docs/images/lms_view.png?raw=True
+.. image:: https://github.com/edly-io/openedx-cmi5-xblock/blob/master/docs/images/lms_view.png?raw=True
    :alt: Update Advanced Settings
 
 Advanced configuration for sending data to LRS

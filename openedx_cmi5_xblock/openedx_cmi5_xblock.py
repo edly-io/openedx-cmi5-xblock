@@ -1,5 +1,6 @@
 """Openedx CMI5 XBlock implementation."""
 
+import base64
 import copy
 import hashlib
 import json
@@ -94,6 +95,12 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         scope=Scope.user_state,
         default={},
         help=_('Save course state such as bookmark')
+    )
+
+    lrs_state_documents = Dict(
+        scope=Scope.user_state,
+        default={},
+        help=_('Save LRS state documents by activity, registration and state ID')
     )
 
     has_score = Boolean(
@@ -206,6 +213,13 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
         """
         credentials = self.get_credentials()
 
+        if request.method == 'GET' and _suffix.strip('/') == 'activities':
+            activity_id = request.params.get('activityId')
+            if not activity_id:
+                logger.warning('Activity request is missing activityId')
+                return Response(status=400)
+            return json_response({'id': activity_id, 'objectType': 'Activity'})
+
         if request.params.get('statementId') and request.method == 'PUT':
             statement_data = get_request_body(request)
             lesson_status = statement_data.get('verb').get('display').get('en')
@@ -242,6 +256,40 @@ class CMI5XBlock(XBlock, CompletableXBlockMixin):
             elif state_id == 'suspendData' and request.method == 'PUT':
                 self.state_data = get_request_body(request)
                 return Response(status=204)
+
+            state_key = json.dumps([
+                request.params.get('activityId', ''),
+                request.params.get('registration', ''),
+                state_id,
+            ])
+            if request.method == 'GET':
+                document = self.lrs_state_documents.get(state_key)
+                if document is None:
+                    return Response(status=404)
+                if document.get('encoding') == 'base64':
+                    body = base64.b64decode(document['body'], validate=True)
+                else:
+                    # Earlier saved documents stored the body as UTF-8 text.
+                    body = document['body'].encode('utf-8')
+                return Response(
+                    body=body,
+                    headers={'Content-Type': document['content_type']},
+                )
+            elif request.method == 'PUT':
+                documents = dict(self.lrs_state_documents)
+                documents[state_key] = {
+                    'body': base64.b64encode(request.body).decode('ascii'),
+                    'encoding': 'base64',
+                    'content_type': request.headers.get('Content-Type', 'application/octet-stream'),
+                }
+                self.lrs_state_documents = documents
+                return Response(status=204)
+            elif request.method == 'DELETE':
+                documents = dict(self.lrs_state_documents)
+                documents.pop(state_key, None)
+                self.lrs_state_documents = documents
+                return Response(status=204)
+            return Response(status=405)
 
         return json_response({'success': True})
 
